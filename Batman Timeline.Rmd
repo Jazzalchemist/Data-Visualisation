@@ -1,0 +1,162 @@
+---
+title: "Batman Timeline"
+author: "Jared Braggins"
+date: "11/09/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(stringsAsFactors = FALSE)
+```
+
+
+```{r prep, message=FALSE, warning=FALSE, include=FALSE}
+# Load libraries
+library(tidyverse)
+library(ggfittext)
+library(knitr)
+library(scales)
+library(extrafont)
+```
+
+
+``` {r, message=FALSE, warning=FALSE, include=FALSE}
+# Import data
+b_data <- read.csv("https://query.data.world/s/ciop4tu2jbtu7k5ncjgor2hnrhzxhu", header=TRUE, stringsAsFactors=FALSE);
+```
+
+
+```{r, include=FALSE}
+# Rename Year column, add column for live action or animated
+b_data_format <- b_data %>% 
+  rename(Year = ï..Year) %>% 
+    mutate(Format = case_when(
+    Title == "Batman" ~ "Live Action",
+    Title == "Batman Returns" ~ "Live Action",
+    Title == "Batman: Mask of the Phantasm" ~ "Animated",
+    Title == "Batman Forever" ~ "Live Action",
+    Title == "Batman & Robin" ~ "Live Action",
+    Title == "Batman & Mr. Freeze: SubZero" ~ "Animated",
+    Title == "Batman Beyond: Return of the Joker" ~ "Animated",
+    Title == "Batman Begins" ~ "Live Action",
+    Title == "The Dark Knight" ~ "Live Action",
+    Title == "Batman: Under the Red Hood" ~ "Animated",
+    Title == "Batman: Year One" ~ "Animated",
+    Title == "Batman: The Dark Knight Returns, Part 1" ~ "Animated",
+    Title == "The Dark Knight Rises" ~ "Live Action",
+    Title == "Batman: The Dark Knight Returns, Part 2" ~ "Animated",
+    Title == "Batman: Assault on Arkham" ~ "Animated",
+    Title == "Batman v Superman" ~ "Live Action",
+    Title == "Batman: The Killing Joke" ~ "Animated",
+    Title == "Justice League" ~ "Live Action",
+    Title == "Batman: Gotham by Gaslight" ~ "Animated"
+  ))
+
+#NOTE: I'm missing some movies, so will need data for those
+
+#Create dataframe for legend
+l_data <- b_data_format %>% 
+  group_by(Format) %>%
+  count(Format)
+l_data$Format <- factor(l_data$Format) %>%
+  fct_reorder(l_data$n)
+
+#Create dataframe for timeline
+t_data <- b_data_format %>% 
+  select(Title, Year, Imdb.Rating, Format)
+
+View(t_data)
+
+# Separate directors and calculate IMDb rating mean
+d_data <- b_data_format %>% 
+  mutate(Director = strsplit(as.character(Director), ", ")) %>% 
+  unnest(Director) %>% 
+  group_by(Director, Format) %>%
+  summarise(
+    n = n(),
+    Mean_Rating = round(mean(Imdb.Rating), 1)) %>% 
+  mutate(Movie_Label = if_else(n == 1, glue::glue("{n} Film"), glue::glue("{n} Films"))) %>% 
+  ungroup() %>% 
+  mutate(Director = reorder(Director, Mean_Rating))
+
+```
+
+```{r, include=FALSE}
+#Set theme
+font_family <- 'Century Gothic'
+background <- "#1D1D1D"
+text_colour <- "white"
+axis_colour <- "white"
+plot_colour <- "black"
+theme_style <- theme(text = element_text(family = font_family),
+                  rect = element_rect(fill = background),
+                  plot.background = element_rect(fill = background, color = NA),
+                  plot.title = element_text(face = 'bold', size = 20, colour = text_colour),
+                  plot.subtitle = element_text(size = 16, colour = text_colour),
+                  plot.caption = element_text(size = 10, colour = text_colour),
+                  panel.background = element_rect(fill = background, color = NA),
+                  panel.border = element_blank(),
+                  plot.margin = unit(c(1, 1, 1, 1), "cm"),
+                  axis.title = element_blank(),
+                  axis.ticks = element_blank(),
+                  axis.line = element_blank(),
+                  legend.position="none")
+
+theme_set(theme_classic() + theme_style)
+
+```
+
+
+```{r, echo=FALSE, fig.width=5, fig.height = 2}
+# Plot Legend
+l_data %>%
+  ggplot(aes(n, Format, color = Format, label = n)) +
+  geom_segment(aes(0, Format, xend = n, yend = Format, color = Format),
+               size = .8) +
+  geom_point(size = 5) +
+  geom_text(size = 4,
+            color = text_colour,
+            nudge_x = .8) +
+  scale_color_manual(values = c("#ffff36", "#0fc3ff")) +
+  theme(axis.text.y = element_text(size = 12, colour= text_colour),
+        axis.text.x = element_blank())
+```
+
+
+```{r, echo=FALSE, fig.width=7, fig.height = 8}
+# Plot Directors
+d_data %>%
+  ggplot(aes(Mean_Rating, Director, color = Format, label = "")) +
+  geom_segment(aes(0, Director, xend = Mean_Rating, yend = Director, color = Format),
+               size = .8) +
+  geom_point(size = 5) +
+  geom_text(color = 'black', size = 4) +
+  labs(title = "Average IMDb Rating By Director") +
+    geom_text(aes(x = 0, y = Director,
+                  label = Director),
+              nudge_y = .5,
+              family = font_family,
+              size = 4,
+              fontface = "bold",
+              hjust = 0) +
+      geom_text(aes(x = 0, y = Director,
+                  label = Movie_Label),
+              nudge_y = .2,
+              family = font_family,
+              color = text_colour,
+              size = 2.6,
+              hjust = 0) +
+      geom_text(aes(x = Mean_Rating, y = Director,
+                  label = Mean_Rating),
+              nudge_x = .2,
+              family = font_family,
+              color = text_colour,
+              size = 4,
+              #fontface = "bold",
+              hjust = 0) +
+  scale_color_manual(values = c("#ffff36", "#0fc3ff")) +
+  scale_y_discrete(expand = c(.05, .05)) +
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank())
+```
